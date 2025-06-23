@@ -21,6 +21,7 @@ mod nvml_exe;
 mod cudnn_exe_custom;
 mod cudnn_exe;
 mod cublas_exe;
+mod cublasLt_exe;
 mod nvrtc_exe;
 mod nccl_exe;
 

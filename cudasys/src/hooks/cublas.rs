@@ -116,3 +116,47 @@ fn cublasSetWorkspace_v2(
     #[device] workspace: *mut c_void,
     workspaceSizeInBytes: usize,
 ) -> cublasStatus_t;
+
+#[cuda_hook(proc_id = 1111)]
+fn cublasSetMatrix(
+    rows: ::std::os::raw::c_int,
+    cols: ::std::os::raw::c_int,
+    elemSize: ::std::os::raw::c_int,
+    #[host(len = rows * cols * elemSize)] A: *const ::std::os::raw::c_void,
+    lda: ::std::os::raw::c_int,
+    #[device] B: *mut ::std::os::raw::c_void,
+    ldb: ::std::os::raw::c_int,
+) -> cublasStatus_t;
+
+#[cuda_hook(proc_id = 1115, async_api)]
+fn cublasSetMatrixAsync(
+    rows: ::std::os::raw::c_int,
+    cols: ::std::os::raw::c_int,
+    elemSize: ::std::os::raw::c_int,
+    #[host(len = rows * cols * elemSize)] A: *const ::std::os::raw::c_void,
+    lda: ::std::os::raw::c_int,
+    #[device] B: *mut ::std::os::raw::c_void,
+    ldb: ::std::os::raw::c_int,
+    stream: cudaStream_t,
+) -> cublasStatus_t;
+
+#[cuda_hook(proc_id = 1112)]
+fn cublasGetMatrix(
+    rows: ::std::os::raw::c_int,
+    cols: ::std::os::raw::c_int,
+    elemSize: ::std::os::raw::c_int,
+    #[device] A: *const ::std::os::raw::c_void,
+    lda: ::std::os::raw::c_int,
+    #[host(output, len = rows * cols * elemSize)] B: *mut ::std::os::raw::c_void,
+    ldb: ::std::os::raw::c_int,
+) -> cublasStatus_t;
+
+#[cuda_hook(proc_id = 1182)]
+fn cublasSscal_v2(
+    handle: cublasHandle_t,
+    n: ::std::os::raw::c_int,
+    #[host] alpha: *const f32,
+    #[device] x: *mut f32,
+    incx: ::std::os::raw::c_int,
+) -> cublasStatus_t;
+
