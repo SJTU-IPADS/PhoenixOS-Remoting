@@ -19,27 +19,7 @@ Consits of 4 parts:
 
 ## Requirements
 
-- Environment setup: please run a docker container mounting the `xpuremoting` directory and enter it. (On `meepo3` or `meepo4`, you can use image `xpu_remoting:latest`). An example command is:
-
-```shell
-export container_name=xxx
-docker run -dit  --shm-size 8G  --name $container_name  --gpus all  --privileged  --network host  -v path/to/xpuremoting:/workspace  xpu_remoting:latest
-```
-
-- Note that we need Rust **nightly** toolchain to build the project, which is not installed in the docker image.
-
-```shell
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain nightly
-. "$HOME/.cargo/env"
-# Optional: install cargo-expand
-# See `codegen/README.md` for usage and alternatives
-cargo +nightly install cargo-expand
-```
-
-- Version checklist
-  - Rust: `nightly`
-  - CMake: at least `3.22.1` (required to run some of the tests)
-  - Clang: at least `6.0.0-1ubuntu2`
+See [environment](environment/README.md).
 
 ## Build
 
@@ -97,11 +77,3 @@ P.S. Can use `RUST_LOG` environment to control the log level (default=debug).
 ### Application test
 
 Please refer to [application-guild](./tests/apps/README.md) to run applicatons
-
-
-
-## Appendix
-
-### Build the docker image
-
-Please refer to the [link](https://x8csr71rzs.feishu.cn/docx/DdXFdGSYOo8cktxgj8hcYh12nHf), and use the Dockerfile in the root directory.

@@ -1,0 +1,24 @@
+services:
+  cuda11:
+    container_name: xpu-yourname
+    # dynamically linked, AT_USE_JITERATOR = false
+    image: phoenixos/pytorch:11.3-ubuntu20.04-jit-disable
+    tty: true # for the container to keep running
+    runtime: nvidia
+    # cpuset: "1,3,5,7,9,11" # nvidia-smi topo -m
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+              # device_ids: ["0"]
+    devices:
+      - /dev/infiniband:/dev/infiniband
+    network_mode: host # for TCP and RDMA handshake
+    shm_size: 64GB # for SHM channel; not using "ipc: host" for namespace isolation
+    ulimits:
+      memlock: -1 # unlimited pinned memory
+      stack: 67108864
+    volumes:
+      - ../..:/workspace
+      # - /path/to/docker_root:/root

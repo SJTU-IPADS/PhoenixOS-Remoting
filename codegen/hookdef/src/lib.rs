@@ -137,6 +137,7 @@ pub struct HookInjections {
     pub client_extra_send: Vec<Stmt>,
     pub client_after_recv: Vec<Stmt>,
     pub server_extra_recv: Vec<Stmt>,
+    pub server_before_execution: Vec<Stmt>,
     pub server_execution: Vec<Stmt>,
     pub server_after_send: Vec<Stmt>,
 }
@@ -176,6 +177,7 @@ impl Parse for HookFnItem {
                 "client_extra_send" => injections.client_extra_send = block.stmts,
                 "client_after_recv" => injections.client_after_recv = block.stmts,
                 "server_extra_recv" => injections.server_extra_recv = block.stmts,
+                "server_before_execution" => injections.server_before_execution = block.stmts,
                 "server_execution" => injections.server_execution = block.stmts,
                 "server_after_send" => injections.server_after_send = block.stmts,
                 _ => {

@@ -77,6 +77,45 @@ pub mod cudnn {
 
     success_return_value!(cudnnStatus_t::CUDNN_STATUS_SUCCESS);
     impl_is_error!(cudnnStatus_t);
+
+    impl cudnnBackendAttributeType_t {
+        pub fn data_size(&self) -> i64 {
+            let result = match self {
+                Self::CUDNN_TYPE_HANDLE => size_of::<cudnnHandle_t>(),
+                Self::CUDNN_TYPE_DATA_TYPE => size_of::<cudnnDataType_t>(),
+                // Self::CUDNN_TYPE_BOOLEAN => size_of::<bool>(),
+                Self::CUDNN_TYPE_INT64 => size_of::<i64>(),
+                Self::CUDNN_TYPE_FLOAT => size_of::<f32>(),
+                // Self::CUDNN_TYPE_DOUBLE => size_of::<f64>(),
+                Self::CUDNN_TYPE_VOID_PTR => size_of::<*mut std::ffi::c_void>(),
+                Self::CUDNN_TYPE_CONVOLUTION_MODE => size_of::<cudnnConvolutionMode_t>(),
+                Self::CUDNN_TYPE_HEUR_MODE => size_of::<cudnnBackendHeurMode_t>(),
+                Self::CUDNN_TYPE_KNOB_TYPE => size_of::<cudnnBackendKnobType_t>(),
+                // Self::CUDNN_TYPE_NAN_PROPOGATION => size_of::<cudnnNanPropagation_t>(),
+                Self::CUDNN_TYPE_NUMERICAL_NOTE => size_of::<cudnnBackendNumericalNote_t>(),
+                // Self::CUDNN_TYPE_LAYOUT_TYPE => size_of::<cudnnBackendLayoutType_t>(),
+                // Self::CUDNN_TYPE_ATTRIB_NAME => size_of::<cudnnBackendAttributeName_t>(),
+                // Self::CUDNN_TYPE_POINTWISE_MODE => size_of::<cudnnPointwiseMode_t>(),
+                Self::CUDNN_TYPE_BACKEND_DESCRIPTOR => size_of::<cudnnBackendDescriptor_t>(),
+                // Self::CUDNN_TYPE_GENSTATS_MODE => size_of::<cudnnGenStatsMode_t>(),
+                // Self::CUDNN_TYPE_BN_FINALIZE_STATS_MODE => size_of::<cudnnBnFinalizeStatsMode_t>(),
+                // Self::CUDNN_TYPE_REDUCTION_OPERATOR_TYPE => size_of::<cudnnReduceTensorOp_t>(),
+                // Self::CUDNN_TYPE_BEHAVIOR_NOTE => size_of::<cudnnBackendBehaviorNote_t>(),
+                // Self::CUDNN_TYPE_TENSOR_REORDERING_MODE => size_of::<cudnnBackendTensorReordering_t>(),
+                // Self::CUDNN_TYPE_RESAMPLE_MODE => size_of::<cudnnResampleMode_t>(),
+                // Self::CUDNN_TYPE_PADDING_MODE => size_of::<cudnnPaddingMode_t>(),
+                // Self::CUDNN_TYPE_INT32 => size_of::<i32>(),
+                // Self::CUDNN_TYPE_CHAR => size_of::<std::ffi::c_char>(),
+                // Self::CUDNN_TYPE_SIGNAL_MODE => size_of::<cudnnSignalMode_t>(),
+                // Self::CUDNN_TYPE_FRACTION => size_of::<cudnnFraction_t>(),
+                // Self::CUDNN_TYPE_NORM_MODE => size_of::<cudnnBackendNormMode_t>(),
+                // Self::CUDNN_TYPE_NORM_FWD_PHASE => size_of::<cudnnBackendNormFwdPhase_t>(),
+                // Self::CUDNN_TYPE_RNG_DISTRIBUTION => size_of::<cudnnRngDistribution_t>(),
+                _ => panic!("unsupported attribute type {self:?}"),
+            };
+            result as i64
+        }
+    }
 }
 
 pub mod cublas {

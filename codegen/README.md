@@ -13,6 +13,8 @@ The crate is a procedural macro lib for generating:
 Minor tips: to check the expanded macros, we can use the following:
 
 ```bash
+cargo +nightly install cargo-expand
+
 cargo expand -p client hijack::cudnn_hijack::cudnnCreate
 cargo expand -p server --lib dispatcher::cudnn_exe::cudnnCreateExe
 ```

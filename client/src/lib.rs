@@ -37,8 +37,9 @@ struct ClientThread {
     channel_receiver: Channel,
     resource_idx: usize,
     cuda_device: Option<std::ffi::c_int>,
+    cuda_device_init: bool,
     #[cfg(feature = "phos")]
-    phos_agent: *mut std::ffi::c_void,
+    phos_agent: phos::POSAgent,
     opt_async_api: bool,
     opt_shadow_desc: bool,
     opt_local: bool,
@@ -112,11 +113,12 @@ impl ClientThread {
             channel_receiver,
             resource_idx: 0,
             cuda_device: None,
+            cuda_device_init: false,
             opt_async_api: config.opt_async_api,
             opt_shadow_desc: config.opt_shadow_desc,
             opt_local: config.opt_local,
             #[cfg(feature = "phos")]
-            phos_agent: unsafe { phos::pos_create_agent() },
+            phos_agent: phos::POSAgent::new(),
         }
     }
 }
@@ -124,9 +126,7 @@ impl ClientThread {
 impl Drop for ClientThread {
     fn drop(&mut self) {
         #[cfg(feature = "phos")]
-        unsafe {
-            phos::pos_destory_agent(self.phos_agent);
-        }
+        self.phos_agent.drop();
 
         let proc_id = -1;
         proc_id.send(&self.channel_sender).unwrap();

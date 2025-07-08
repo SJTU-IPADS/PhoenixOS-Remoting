@@ -101,11 +101,6 @@ fn split(content: &str, types_file: &Path, funcs_file: &Path) {
     let mut funcs_file = File::create(funcs_file).unwrap_or_else(|e| panic!("Failed to create file {funcs_file:?}: {e}"));
 
     for f in funcs {
-        if f.contains("config: *mut ncclConfig_t") {
-            let replaced = f.replace("config: *mut ncclConfig_t", "config: *const ncclConfig_t");
-            write!(funcs_file, "{replaced}").unwrap();
-            continue;
-        }
         write!(funcs_file, "{f}").expect("Failed to write function");
     }
 }

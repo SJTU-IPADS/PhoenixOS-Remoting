@@ -2,6 +2,9 @@ use crate::types::cudart::*;
 use codegen::{cuda_custom_hook, cuda_hook};
 use std::os::raw::*;
 
+// Hacked via type alias because imports are rewritten in generated code.
+type CUfunction = crate::types::cuda::CUfunction;
+
 #[cuda_hook(proc_id = 120)]
 fn cudaGetDevice(device: *mut c_int) -> cudaError_t {
     'client_before_send: {
@@ -59,12 +62,7 @@ fn cudaMemcpyHtod(
     #[host(len = count)] src: *const c_void,
     count: usize,
     kind: cudaMemcpyKind,
-) -> cudaError_t {
-    'server_extra_recv: {
-        #[cfg(feature = "phos")]
-        compile_error!("PhOS argument is probably broken");
-    }
-}
+) -> cudaError_t;
 
 #[cuda_hook(proc_id = 321, parent = cudaMemcpy)]
 fn cudaMemcpyDtoh(
@@ -72,12 +70,7 @@ fn cudaMemcpyDtoh(
     #[device] src: *const c_void,
     count: usize,
     kind: cudaMemcpyKind,
-) -> cudaError_t {
-    'server_extra_recv: {
-        #[cfg(feature = "phos")]
-        compile_error!("PhOS argument is probably broken");
-    }
-}
+) -> cudaError_t;
 
 #[cuda_hook(proc_id = 322, async_api, parent = cudaMemcpy)]
 fn cudaMemcpyDtod(
@@ -85,12 +78,7 @@ fn cudaMemcpyDtod(
     #[device] src: *const c_void,
     count: usize,
     kind: cudaMemcpyKind,
-) -> cudaError_t {
-    'server_extra_recv: {
-        #[cfg(feature = "phos")]
-        compile_error!("PhOS argument is probably broken");
-    }
-}
+) -> cudaError_t;
 
 #[cuda_custom_hook] // calls one of the following internal APIs
 fn cudaMemcpyAsync(
@@ -109,14 +97,17 @@ fn cudaMemcpyAsyncHtod(
     kind: cudaMemcpyKind,
     stream: cudaStream_t,
 ) -> cudaError_t {
-    'server_extra_recv: {
-        #[cfg(feature = "phos")]
-        compile_error!("PhOS argument is probably broken");
-    }
     'server_execution: {
+        // FIXME: can't async because server deallocates memory after calling
+        #[cfg(not(feature = "phos"))]
         let result = unsafe {
             assert_eq!(cudaStreamSynchronize(stream), Default::default());
             cudaMemcpy(dst, src__ptr.cast(), count, kind)
+        };
+        #[cfg(feature = "phos")]
+        let result = {
+            assert_eq!(phos_cudaStreamSynchronize(&server.pos_cuda_ws, stream), Default::default());
+            phos_cudaMemcpyHtod(&server.pos_cuda_ws, dst, src__ptr.cast(), count, kind)
         };
     }
 }
@@ -129,14 +120,17 @@ fn cudaMemcpyAsyncDtoh(
     kind: cudaMemcpyKind,
     stream: cudaStream_t,
 ) -> cudaError_t {
-    'server_extra_recv: {
-        #[cfg(feature = "phos")]
-        compile_error!("PhOS argument is probably broken");
-    }
     'server_execution: {
+        // FIXME: can't async because server can't send data back async
+        #[cfg(not(feature = "phos"))]
         let result = unsafe {
             assert_eq!(cudaStreamSynchronize(stream), Default::default());
             cudaMemcpy(dst__ptr.cast(), src, count, kind)
+        };
+        #[cfg(feature = "phos")]
+        let result = {
+            assert_eq!(phos_cudaStreamSynchronize(&server.pos_cuda_ws, stream), Default::default());
+            phos_cudaMemcpyDtoh(&server.pos_cuda_ws, dst__ptr.cast(), src, count, kind)
         };
     }
 }
@@ -148,12 +142,7 @@ fn cudaMemcpyAsyncDtod(
     count: usize,
     kind: cudaMemcpyKind,
     stream: cudaStream_t,
-) -> cudaError_t {
-    'server_extra_recv: {
-        #[cfg(feature = "phos")]
-        compile_error!("PhOS argument is probably broken");
-    }
-}
+) -> cudaError_t;
 
 #[cuda_hook(proc_id = 253, async_api)]
 fn cudaFree(#[device] devPtr: *mut c_void) -> cudaError_t;
@@ -179,8 +168,19 @@ fn cudaPointerGetAttributes(
 #[cuda_custom_hook] // local
 fn cudaHostAlloc(pHost: *mut *mut c_void, size: usize, flags: c_uint) -> cudaError_t;
 
-#[cuda_custom_hook] // calls driver API
+#[cuda_custom_hook] // calls the internal API below
 fn cudaFuncGetAttributes(attr: *mut cudaFuncAttributes, func: *const c_void) -> cudaError_t;
+
+#[cuda_hook(proc_id = 230, parent = cudaFuncGetAttributes)]
+fn cudaFuncGetAttributesInternal(attr: *mut cudaFuncAttributes, func: CUfunction) -> cudaError_t {
+    'server_execution: {
+        unsafe { attr__ptr.write_bytes(0u8, 1) };
+        #[cfg(not(feature = "phos"))]
+        let result = super::cuda_exe_utils::cu_func_get_attributes(attr__ptr, func);
+        #[cfg(feature = "phos")]
+        let result = phos_cudaFuncGetAttributesInternal(&server.pos_cuda_ws, attr__ptr, func);
+    }
+}
 
 #[cuda_custom_hook] // local
 fn __cudaRegisterFatBinary(fatCubin: *mut c_void) -> *mut *mut c_void;
@@ -241,7 +241,7 @@ fn cudaMemsetAsync(
     stream: cudaStream_t,
 ) -> cudaError_t;
 
-#[cuda_custom_hook(proc_id = 151)]
+#[cuda_custom_hook] // local
 fn cudaGetErrorString(error: cudaError_t) -> *const c_char;
 
 #[cuda_hook(proc_id = 274)]
@@ -342,27 +342,15 @@ fn cudaStreamGetCaptureInfo_v2(
     stream: cudaStream_t,
     captureStatus_out: *mut cudaStreamCaptureStatus,
     id_out: *mut c_ulonglong,
-    #[skip] graph_out: *mut cudaGraph_t,
-    #[skip] dependencies_out: *mut *const cudaGraphNode_t,
-    #[skip] numDependencies_out: *mut usize,
+    #[device] graph_out: *mut cudaGraph_t, // null
+    #[device] dependencies_out: *mut *const cudaGraphNode_t, // null
+    #[device] numDependencies_out: *mut usize, // null
 ) -> cudaError_t {
     'client_before_send: {
         assert!(!id_out.is_null());
         assert!(graph_out.is_null());
         assert!(dependencies_out.is_null());
         assert!(numDependencies_out.is_null());
-    }
-    'server_execution: {
-        let result = unsafe {
-            cudaStreamGetCaptureInfo_v2(
-                stream,
-                captureStatus_out__ptr,
-                id_out__ptr,
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
-            )
-        };
     }
 }
 
@@ -376,9 +364,8 @@ fn cudaThreadExchangeStreamCaptureMode(mode: *mut cudaStreamCaptureMode) -> cuda
         let mut mode_in = cudaStreamCaptureMode::cudaStreamCaptureModeGlobal;
         mode_in.recv(channel_receiver).unwrap();
     }
-    'server_execution: {
+    'server_before_execution: {
         mode.write(mode_in);
-        let result = unsafe { cudaThreadExchangeStreamCaptureMode(mode__ptr) };
     }
 }
 
@@ -394,14 +381,11 @@ fn cudaGraphExecDestroy(graphExec: cudaGraphExec_t) -> cudaError_t;
 #[cuda_hook(proc_id = 563)]
 fn cudaGraphGetNodes(
     graph: cudaGraph_t,
-    #[skip] nodes: *mut cudaGraphNode_t,
+    #[device] nodes: *mut cudaGraphNode_t, // null
     numNodes: *mut usize,
 ) -> cudaError_t {
     'client_before_send: {
         assert!(nodes.is_null());
-    }
-    'server_execution: {
-        let result = unsafe { cudaGraphGetNodes(graph, std::ptr::null_mut(), numNodes__ptr) };
     }
 }
 

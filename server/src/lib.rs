@@ -30,7 +30,7 @@ struct ServerWorker<C> {
     opt_async_api: bool,
     opt_shadow_desc: bool,
     #[cfg(feature = "phos")]
-    pub pos_cuda_ws: *mut std::ffi::c_void,
+    pub pos_cuda_ws: phos::POSWorkspace_CUDA,
 }
 
 impl<C> Drop for ServerWorker<C> {
@@ -40,10 +40,6 @@ impl<C> Drop for ServerWorker<C> {
             unsafe {
                 cudasys::cuda::cuModuleUnload(*module);
             }
-        }
-        #[cfg(feature = "phos")]
-        unsafe {
-            phos::pos_destory_workspace_cuda(self.pos_cuda_ws);
         }
     }
 }
@@ -97,6 +93,10 @@ pub fn launch_server(
     barrier: Option<std::sync::Arc<std::sync::Barrier>>,
     is_main_thread: bool,
 ) {
+    // PhOS workspace must be created before client initialization barrier
+    #[cfg(feature = "phos")]
+    let pos_cuda_ws = phos::POSWorkspace_CUDA::new();
+
     let (channel_sender, channel_receiver) = create_buffer(config, id, barrier);
     info!(
         "[{}:{}] {} buffer created",
@@ -132,18 +132,20 @@ pub fn launch_server(
         opt_async_api: config.opt_async_api,
         opt_shadow_desc: config.opt_shadow_desc,
         #[cfg(feature = "phos")]
-        pos_cuda_ws: {
-            info!("Starting PhOS server ...");
-            let pos_cuda_ws = unsafe { phos::pos_create_workspace_cuda() };
-            info!("PhOS daemon is running. You can run a program like \"env $phos python3 train.py \" now");
-            pos_cuda_ws
-        },
+        pos_cuda_ws,
     };
 
     loop {
         if let Ok(proc_id) = receive_request(&mut server.channel_receiver) {
             if proc_id == -1 {
                 break;
+            }
+            #[cfg(feature = "phos")]
+            if proc_id == -2 {
+                let mut uuid = 0u64;
+                uuid.recv(&mut server.channel_receiver).unwrap();
+                server.pos_cuda_ws.stop(uuid);
+                continue;
             }
             dispatch(proc_id, &mut server);
         } else {

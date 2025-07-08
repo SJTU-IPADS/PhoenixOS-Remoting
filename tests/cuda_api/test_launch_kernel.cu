@@ -7,7 +7,7 @@ __global__ void addKernel(int *c, const int *a, const int *b, int size)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < size) {
-        c[i] = a[i] + b[i];
+        c[i] = a[i] + 1;
     }
 }
 
@@ -34,13 +34,18 @@ int main(int argc, char **argv)
 
     // remove initial overhead
     for (int i = 0; i < 10; i++) {
-        addKernel<<<2, (size + 1) / 2>>>(dev_a, dev_a, dev_a, size);
+        addKernel<<<(size + 1023) / 1024, 1024>>>(dev_a, dev_a, dev_a, size);
+    }
+
+    if (auto err = cudaGetLastError()) {
+        std::cerr << cudaGetErrorString(err) << std::endl;
+        return 1;
     }
 
     // Launch a kernel on the GPU with one thread for each element.
     auto start = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < iterations; i++) {
-        addKernel<<<2, (size + 1) / 2>>>(dev_a, dev_a, dev_a, size);
+        addKernel<<<(size + 1023) / 1024, 1024>>>(dev_a, dev_a, dev_a, size);
     }
     // cudaDeviceSynchronize();
     auto end = std::chrono::high_resolution_clock::now();

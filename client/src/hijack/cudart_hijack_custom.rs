@@ -59,6 +59,13 @@ pub extern "C" fn cudaMemcpyAsync(
 }
 
 fn get_cufunction(func: HostPtr) -> cudasys::cuda::CUfunction {
+    if !CLIENT_THREAD.with_borrow(|client| client.cuda_device_init) {
+        // https://docs.nvidia.com/cuda/cuda-c-programming-guide/#initialization
+        #[cfg(not(feature = "phos"))]
+        assert_eq!(super::cudart_hijack::cudaFree(std::ptr::null_mut()), Default::default());
+        CLIENT_THREAD.with_borrow_mut(|client| client.cuda_device_init = true);
+    }
+
     if let Some(&cufunc) = RUNTIME_CACHE.read().unwrap().loaded_functions.get(&func) {
         return cufunc;
     }
@@ -157,31 +164,11 @@ pub extern "C" fn cudaHostAlloc(
 }
 
 #[no_mangle]
-#[use_thread_local(client = CLIENT_THREAD.with_borrow_mut)]
 pub extern "C" fn cudaGetErrorString(
     cudaError: cudaError_t,
 ) -> *const ::std::os::raw::c_char {
     log::debug!(target: "cudaGetErrorString", "{cudaError:?}");
-    let ClientThread { channel_sender, channel_receiver, .. } = client;
-    let proc_id = 151;
-    let mut result:Vec<u8>  = Default::default();
-    match proc_id.send(channel_sender) {
-        Ok(()) => {}
-        Err(e) => panic!("failed to send proc_id: {:?}", e),
-    }
-    match cudaError.send(channel_sender) {
-        Ok(()) => {}
-        Err(e) => panic!("failed to send cudaError: {:?}", e),
-    }
-    channel_sender.flush_out().unwrap();
-    match result.recv(channel_receiver) {
-        Ok(()) => {}
-        Err(e) => panic!("failed to receive result: {:?}", e),
-    }
-    match channel_receiver.recv_ts() {
-                Ok(()) => {}
-                Err(e) => panic!("failed to receive timestamp: {:?}", e),
-            }
+    let result = format!("{cudaError:?} ({})", cudaError as u32);
     let result = CString::new(result).unwrap();
     result.into_raw() // leaking the string as the program is about to fail anyway
 }
@@ -244,39 +231,7 @@ extern "C" fn cudaFuncGetAttributes(
 ) -> cudaError_t {
     log::debug!(target: "cudaFuncGetAttributes", "");
     let func = get_cufunction(func as HostPtr);
-    let attr = unsafe {
-        attr.write_bytes(0u8, 1);
-        &mut *attr
-    };
-    // HACK: implementation with cuFuncGetAttribute depends on CUDA version
-    macro_rules! get_attributes {
-        ($func:ident -> $struct:ident $($field:ident: $attr:ident,)+) => {
-            $(
-                let mut i = 0;
-                assert_eq!(
-                    super::cuda_hijack::cuFuncGetAttribute(
-                        &raw mut i,
-                        cudasys::cuda::CUfunction_attribute::$attr,
-                        $func,
-                    ),
-                    Default::default(),
-                );
-                $struct.$field = i as _;
-            )+
-        }
-    }
-    get_attributes! { func -> attr
-        sharedSizeBytes: CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
-        constSizeBytes: CU_FUNC_ATTRIBUTE_CONST_SIZE_BYTES,
-        localSizeBytes: CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
-        maxThreadsPerBlock: CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-        numRegs: CU_FUNC_ATTRIBUTE_NUM_REGS,
-        ptxVersion: CU_FUNC_ATTRIBUTE_PTX_VERSION,
-        binaryVersion: CU_FUNC_ATTRIBUTE_BINARY_VERSION,
-        cacheModeCA: CU_FUNC_ATTRIBUTE_CACHE_MODE_CA,
-        maxDynamicSharedSizeBytes: CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES,
-    }
-    cudaError_t::cudaSuccess
+    super::cudart_hijack::cudaFuncGetAttributesInternal(attr, func)
 }
 
 #[no_mangle]

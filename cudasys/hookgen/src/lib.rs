@@ -117,7 +117,7 @@ pub fn generate_passthrough(
     body: fn(&Signature) -> Option<Box<Block>>,
 ) {
     let comment = format!("// Generated from {bindings_dir}\n\n");
-    let mut mod_file = fs::File::create(&format!("{output_dir}/mod_passthrough.rs")).unwrap();
+    let mut mod_file = fs::File::create(format!("{output_dir}/mod_passthrough.rs")).unwrap();
     mod_file.write_all(comment.as_bytes()).unwrap();
     for (module, bindings) in parse_bindings_dir(bindings_dir) {
         writeln!(&mut mod_file, "mod {module}_passthrough;").unwrap();
@@ -201,6 +201,12 @@ fn convert_hooks(
             }
             Item::Type(mut item) => {
                 item.attrs.clear();
+                if let Type::Path(ty) = item.ty.as_mut() {
+                    let ident = &mut ty.path.segments[0].ident;
+                    if ident == "crate" {
+                        *ident = Ident::new("cudasys", ident.span());
+                    }
+                }
                 output.push(Item::Type(item));
             }
             Item::Fn(mut func) => {
@@ -299,8 +305,7 @@ fn check_sig_replace_attr(
             return true;
         }
     }
-    let is_internal;
-    match HookAttrs::from_attr(attr) {
+    let is_internal = match HookAttrs::from_attr(attr) {
         Ok(attrs) => {
             if cuda_version < attrs.min_cuda_version || attrs.max_cuda_version < cuda_version {
                 println!(
@@ -314,13 +319,13 @@ fn check_sig_replace_attr(
                 name: sig.ident.to_string(),
                 is_custom: false,
             });
-            is_internal = attrs.parent.is_some();
+            attrs.parent.is_some()
         }
         Err(err) => {
             output.push(Item::Macro(syn::parse2(err.to_compile_error()).unwrap()));
             return true;
         }
-    }
+    };
     match attr.meta {
         Meta::List(ref mut meta) => {
             meta.path = Ident::new(target_attr, meta.path.span()).into();

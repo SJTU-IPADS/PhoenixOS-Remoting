@@ -30,7 +30,7 @@ impl Element {
 pub enum PassBy {
     InputValue,
     SinglePtr,
-    ArrayPtr { len: Expr, cap: Option<Expr> },
+    ArrayPtr { len: Box<Expr>, cap: Option<Box<Expr>> },
     InputCStr,
 }
 

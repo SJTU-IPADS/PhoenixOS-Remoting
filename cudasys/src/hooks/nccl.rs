@@ -68,7 +68,7 @@ fn ncclCommInitRankConfig(
     nranks: c_int,
     commId: ncclUniqueId,
     rank: c_int,
-    #[host] config: *const ncclConfig_t,
+    #[host(input)] config: *mut ncclConfig_t,
 ) -> ncclResult_t;
 
 #[cuda_hook(proc_id = 3212)]

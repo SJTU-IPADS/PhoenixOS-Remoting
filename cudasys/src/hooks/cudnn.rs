@@ -356,5 +356,83 @@ fn cudnnGetConvolutionForwardWorkspaceSize(
     sizeInBytes: *mut usize,
 ) -> cudnnStatus_t;
 
-#[cuda_custom_hook(proc_id = 1834)]
+#[cuda_custom_hook] // local
 fn cudnnGetErrorString(status: cudnnStatus_t) -> *const c_char;
+
+// TODO: shadow_desc
+#[cuda_hook(proc_id = 2500)]
+fn cudnnBackendCreateDescriptor(
+    descriptorType: cudnnBackendDescriptorType_t,
+    descriptor: *mut cudnnBackendDescriptor_t,
+) -> cudnnStatus_t;
+
+#[cuda_hook(proc_id = 2501)]
+fn cudnnBackendDestroyDescriptor(descriptor: cudnnBackendDescriptor_t) -> cudnnStatus_t;
+
+#[cuda_hook(proc_id = 2502)]
+fn cudnnBackendExecute(
+    handle: cudnnHandle_t,
+    executionPlan: cudnnBackendDescriptor_t,
+    variantPack: cudnnBackendDescriptor_t,
+) -> cudnnStatus_t;
+
+#[cuda_hook(proc_id = 2503)]
+fn cudnnBackendFinalize(descriptor: cudnnBackendDescriptor_t) -> cudnnStatus_t;
+
+#[cuda_custom_hook] // calls one of the following internal APIs
+fn cudnnBackendGetAttribute(
+    descriptor: cudnnBackendDescriptor_t,
+    attributeName: cudnnBackendAttributeName_t,
+    attributeType: cudnnBackendAttributeType_t,
+    requestedElementCount: i64,
+    elementCount: *mut i64,
+    arrayOfElements: *mut c_void,
+) -> cudnnStatus_t;
+
+#[cuda_hook(proc_id = 992504, parent = cudnnBackendGetAttribute)]
+fn cudnnBackendGetAttributeCount(
+    descriptor: cudnnBackendDescriptor_t,
+    attributeName: cudnnBackendAttributeName_t,
+    attributeType: cudnnBackendAttributeType_t,
+    requestedElementCount: i64,
+    elementCount: *mut i64,
+    #[device] arrayOfElements: *mut c_void, // null
+) -> cudnnStatus_t;
+
+#[cuda_hook(proc_id = 992505, parent = cudnnBackendGetAttribute)]
+fn cudnnBackendGetAttributeData(
+    descriptor: cudnnBackendDescriptor_t,
+    attributeName: cudnnBackendAttributeName_t,
+    attributeType: cudnnBackendAttributeType_t, // not CUDNN_TYPE_BACKEND_DESCRIPTOR
+    requestedElementCount: i64,
+    elementCount: *mut i64,
+    // `len` and `cap` are required because some callers provide buffers shorter than `requestedElementCount`
+    // so that using `len = requestedElementCount` alone will lead to memory corruption
+    // https://github.com/NVIDIA/cudnn-frontend/blob/v1.11.0/include/cudnn_frontend_ExecutionPlan.h#L165-L177
+    #[host(
+        output,
+        len = attributeType.data_size() * elementCount.to_owned(),
+        cap = attributeType.data_size() * requestedElementCount,
+    )]
+    arrayOfElements: *mut c_void,
+) -> cudnnStatus_t;
+
+#[cuda_hook(proc_id = 992506, parent = cudnnBackendGetAttribute)]
+fn cudnnBackendGetAttributeDescriptors(
+    descriptor: cudnnBackendDescriptor_t,
+    attributeName: cudnnBackendAttributeName_t,
+    attributeType: cudnnBackendAttributeType_t, // CUDNN_TYPE_BACKEND_DESCRIPTOR
+    requestedElementCount: i64,
+    elementCount: *mut i64,
+    #[host(input, len = attributeType.data_size() * requestedElementCount)]
+    arrayOfElements: *mut c_void,
+) -> cudnnStatus_t;
+
+#[cuda_hook(proc_id = 2506)]
+fn cudnnBackendSetAttribute(
+    descriptor: cudnnBackendDescriptor_t,
+    attributeName: cudnnBackendAttributeName_t,
+    attributeType: cudnnBackendAttributeType_t,
+    elementCount: i64,
+    #[host(len = attributeType.data_size() * elementCount)] arrayOfElements: *const c_void,
+) -> cudnnStatus_t;

@@ -21,3 +21,5 @@ data
 
 *.sqlite
 *.nsys-rep
+
+/config.toml

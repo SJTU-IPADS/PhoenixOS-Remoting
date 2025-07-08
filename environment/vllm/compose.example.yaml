@@ -1,0 +1,24 @@
+services:
+  vllm:
+    container_name: vllm-yourname
+    image: ai-containers-cn-beijing.cr.volces.com/deeplearning/vllm:0.7.1.v1.iaas
+    entrypoint: sleep inf
+    init: true # handle stop signals
+    runtime: nvidia
+    # cpuset: "1,3,5,7,9,11" # nvidia-smi topo -m
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+              # device_ids: ["0"]
+    devices:
+      - /dev/infiniband:/dev/infiniband
+    network_mode: host # for TCP and RDMA handshake
+    shm_size: 64GB # for SHM channel; not using "ipc: host" for namespace isolation
+    ulimits:
+      memlock: -1 # unlimited pinned memory
+      stack: 67108864
+    volumes:
+      - ../..:/workspace
+      # - /path/to/docker_root:/root

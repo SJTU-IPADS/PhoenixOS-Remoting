@@ -35,7 +35,7 @@ fn cuLaunchKernel(
     'server_execution: {
         let result = super::cuda_exe_utils::cu_launch_kernel(
             #[cfg(feature = "phos")]
-            server.pos_cuda_ws,
+            &server.pos_cuda_ws,
             f,
             gridDimX,
             gridDimY,
@@ -74,6 +74,23 @@ fn cuModuleLoadDataInternal(
             std::borrow::Cow::Owned(image.to_vec())
         };
         assert!(DRIVER_CACHE.write().unwrap().images.insert(*module, image).is_none());
+    }
+    'server_execution: {
+        #[cfg(not(feature = "phos"))]
+        let result = unsafe { cuModuleLoadData(module__ptr, image__ptr.cast()) };
+        // https://github.com/SJTU-IPADS/PhoenixOS/blob/main/unittest/test_cuda/apis/cuda_driver/cuModuleLoadData.cpp
+        #[cfg(feature = "phos")]
+        let result = CUresult::from_i32(server.pos_cuda_ws.pos_process(
+            701,
+            0u64,
+            &[
+                &raw const module__ptr as usize,
+                size_of_val(&module__ptr),
+                image__ptr as usize,
+                image.len(),
+            ],
+        ))
+        .expect("Illegal result ID");
     }
     'server_after_send: {
         server.modules.push(module);

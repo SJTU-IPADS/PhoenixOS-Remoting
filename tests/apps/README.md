@@ -63,18 +63,6 @@ local output:
 ["The primary language of the United States is English.","The primary language of the United States is English.","The primary language of the United States is English.","The primary language of the United States is English."]
 ```
 
-### ResNet
-
-remoting output: 
-```
-[True, True, True, False]
-```
-
-local output: 
-```
-[True, True, True, False]
-```
-
 ### Stable Diffusion
 
 remoting output:

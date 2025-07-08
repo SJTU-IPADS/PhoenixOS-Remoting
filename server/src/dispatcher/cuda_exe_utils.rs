@@ -1,8 +1,9 @@
-use cudasys::cuda::*;
 use std::os::raw::*;
 
+use cudasys::cuda::*;
+
 pub fn cu_launch_kernel(
-    #[cfg(feature = "phos")] pos_cuda_ws: *mut c_void,
+    #[cfg(feature = "phos")] pos_cuda_ws: &crate::phos::POSWorkspace_CUDA,
     f: CUfunction,
     gridDimX: c_uint,
     gridDimY: c_uint,
@@ -38,33 +39,73 @@ pub fn cu_launch_kernel(
             extra_array.as_ptr().cast_mut(),
         )
     }
+    // https://github.com/SJTU-IPADS/PhoenixOS/blob/main/unittest/test_cuda/apis/cuda_driver/cuLaunchKernel.cpp
     #[cfg(feature = "phos")]
     {
         use super::*;
-        use cudasys::cudart::dim3;
 
-        let gridDim = dim3 { x: gridDimX, y: gridDimY, z: gridDimZ };
-        let blockDim = dim3 { x: blockDimX, y: blockDimY, z: blockDimZ };
-        let sharedMem = sharedMemBytes as usize;
-        CUresult::from_i32(call_pos_process(
-            pos_cuda_ws,
-            239, // cudaLaunchKernel
+        CUresult::from_i32(pos_cuda_ws.pos_process(
+            918, // cuLaunchKernel
             0,
             &[
                 &raw const f as usize,
                 size_of_val(&f),
-                &raw const gridDim as usize,
-                size_of_val(&gridDim),
-                &raw const blockDim as usize,
-                size_of_val(&blockDim),
-                args.as_ptr() as usize,
-                args.len(),
-                &raw const sharedMem as usize,
-                size_of_val(&sharedMem),
+                &raw const gridDimX as usize,
+                size_of_val(&gridDimX),
+                &raw const gridDimY as usize,
+                size_of_val(&gridDimY),
+                &raw const gridDimZ as usize,
+                size_of_val(&gridDimZ),
+                &raw const blockDimX as usize,
+                size_of_val(&blockDimX),
+                &raw const blockDimY as usize,
+                size_of_val(&blockDimY),
+                &raw const blockDimZ as usize,
+                size_of_val(&blockDimZ),
+                &raw const sharedMemBytes as usize,
+                size_of_val(&sharedMemBytes),
                 &raw const hStream as usize,
                 size_of_val(&hStream),
+                args.as_ptr() as usize,
+                args.len(),
+                1, // work around null check
+                0,
             ],
         ))
         .expect("Illegal result ID")
     }
+}
+
+#[cfg(not(feature = "phos"))]
+pub fn cu_func_get_attributes(
+    attr: *mut cudasys::cudart::cudaFuncAttributes,
+    func: CUfunction,
+) -> CUresult {
+    let attr = unsafe { &mut *attr };
+    // HACK: implementation with cuFuncGetAttribute depends on CUDA version
+    macro_rules! get_attributes {
+        ($func:ident -> $struct:ident $($field:ident: $attr:ident,)+) => {
+            $(
+                let mut i = 0;
+                let result =
+                    unsafe { cuFuncGetAttribute(&raw mut i, CUfunction_attribute::$attr, $func) };
+                if result != Default::default() {
+                    return result;
+                }
+                $struct.$field = i as _;
+            )+
+        }
+    }
+    get_attributes! { func -> attr
+        sharedSizeBytes: CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
+        constSizeBytes: CU_FUNC_ATTRIBUTE_CONST_SIZE_BYTES,
+        localSizeBytes: CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
+        maxThreadsPerBlock: CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+        numRegs: CU_FUNC_ATTRIBUTE_NUM_REGS,
+        ptxVersion: CU_FUNC_ATTRIBUTE_PTX_VERSION,
+        binaryVersion: CU_FUNC_ATTRIBUTE_BINARY_VERSION,
+        cacheModeCA: CU_FUNC_ATTRIBUTE_CACHE_MODE_CA,
+        maxDynamicSharedSizeBytes: CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES,
+    }
+    CUresult::CUDA_SUCCESS
 }
