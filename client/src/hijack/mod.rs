@@ -16,7 +16,6 @@ mod cudnn_unimplement;
 mod cublas_hijack;
 mod cublas_unimplement;
 mod cublasLt_hijack;
-mod cublasLt_hijack_custom;
 mod cublasLt_unimplement;
 mod nvrtc_hijack;
 mod nvrtc_unimplement;
