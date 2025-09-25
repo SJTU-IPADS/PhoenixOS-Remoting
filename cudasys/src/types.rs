@@ -69,7 +69,16 @@ pub mod nvml {
     include!("bindings/types/nvml.rs");
 
     success_return_value!(nvmlReturn_t::NVML_SUCCESS);
-    impl_is_error!(nvmlReturn_t);
+
+    impl nvmlReturn_t {
+        pub fn is_error(self) -> bool {
+            !matches!(
+                self,
+                Self::NVML_SUCCESS
+                    | Self::NVML_ERROR_NOT_SUPPORTED
+            )
+        }
+    }
 }
 
 pub mod cudnn {
